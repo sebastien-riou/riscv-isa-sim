@@ -84,6 +84,21 @@ bool basic_csr_t::unlogged_write(const reg_t val) noexcept {
   return true;
 }
 
+// implement class io_csr_t
+io_csr_t::io_csr_t(processor_t* const proc, const reg_t addr):
+  csr_t(proc, addr)
+ {
+}
+
+reg_t io_csr_t::read() const noexcept {
+  return 0;
+}
+
+bool io_csr_t::unlogged_write(const reg_t val) noexcept {
+  fprintf(stderr, "%c", ((int) val));
+  return true;
+}
+
 
 // implement class pmpaddr_csr_t
 pmpaddr_csr_t::pmpaddr_csr_t(processor_t* const proc, const reg_t addr):

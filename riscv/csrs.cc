@@ -91,6 +91,7 @@ io_csr_t::io_csr_t(processor_t* const proc, const reg_t addr):
 }
 
 reg_t io_csr_t::read() const noexcept {
+  if(this->address==CSR_BAREMETALINPUT) return getchar();
   return 0;
 }
 
@@ -99,6 +100,9 @@ bool io_csr_t::unlogged_write(const reg_t val) noexcept {
   return true;
 }
 
+reg_t io_csr_t::written_value() const noexcept {
+  return 0;
+}
 
 // implement class pmpaddr_csr_t
 pmpaddr_csr_t::pmpaddr_csr_t(processor_t* const proc, const reg_t addr):

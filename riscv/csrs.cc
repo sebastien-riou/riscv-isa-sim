@@ -96,7 +96,12 @@ reg_t io_csr_t::read() const noexcept {
 }
 
 bool io_csr_t::unlogged_write(const reg_t val) noexcept {
-  fprintf(stderr, "%c", ((int) val));
+  const int bgColor = ((val >> 24) & 7);
+  const int fgColor = ((val >> 16) & 7);
+  const reg_t stderr_flag = 1<<31;
+  FILE*dst = stdout;
+  if(val & stderr_flag) dst = stderr; 
+  fprintf(dst, "\x1b[0;3%d;4%dm%c\x1b[0m",bgColor,fgColor, ((int) val));
   return true;
 }
 

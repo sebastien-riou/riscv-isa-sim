@@ -395,6 +395,10 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   csrmap[CSR_BAREMETALINPUT] = std::make_shared<io_csr_t>(proc, CSR_BAREMETALINPUT);
   #endif //bare metal input csr
 
+  #ifdef BARE_METAL_INPUT2_CSR
+  csrmap[CSR_BAREMETALINPUT2] = std::make_shared<io_csr_t>(proc, CSR_BAREMETALINPUT2);
+  #endif //bare metal input2 csr
+
   csrmap[CSR_MISA] = misa = std::make_shared<misa_csr_t>(proc, CSR_MISA, max_isa);
   csrmap[CSR_MSTATUS] = mstatus = std::make_shared<mstatus_csr_t>(proc, CSR_MSTATUS);
   if (xlen == 32) csrmap[CSR_MSTATUSH] = std::make_shared<mstatush_csr_t>(proc, CSR_MSTATUSH, mstatus);

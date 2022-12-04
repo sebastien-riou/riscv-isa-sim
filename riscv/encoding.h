@@ -10,6 +10,7 @@
 
 #define BARE_METAL_OUTPUT_CSR
 #define BARE_METAL_INPUT_CSR
+#define BARE_METAL_INPUT2_CSR
 
 #define MSTATUS_UIE         0x00000001
 #define MSTATUS_SIE         0x00000002
@@ -3174,6 +3175,9 @@
 #endif //bare metal output csr
 #ifdef BARE_METAL_INPUT_CSR
 #define CSR_BAREMETALINPUT 0x408
+#endif //bare metal input csr
+#ifdef BARE_METAL_INPUT2_CSR
+#define CSR_BAREMETALINPUT2 0x40c
 #endif //bare metal input csr
 #define CAUSE_MISALIGNED_FETCH 0x0
 #define CAUSE_FETCH_ACCESS 0x1

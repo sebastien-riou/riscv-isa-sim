@@ -90,8 +90,70 @@ io_csr_t::io_csr_t(processor_t* const proc, const reg_t addr):
  {
 }
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#define closesocket close
+static long unsigned int rx_bytes_available(int sockfd){
+    long unsigned int bytes_available;
+    ioctl(sockfd,FIONREAD,&bytes_available);
+    return bytes_available;
+}
+static int comsock_stdinout=0;
+static int comsock_port=0;
+static const char *comsock_address=0;
+static int comsock_listenfd = 0;
+void comsock_wait_connect(){
+  printf("listening on port %d for stdinout\n",comsock_port);fflush(stdout);
+  listen(comsock_listenfd, 1);//listen to a single connection
+  comsock_stdinout = accept(comsock_listenfd, (struct sockaddr*)NULL, NULL);
+  printf("stdinout connected\n");fflush(stdout);
+}
+void comsock_init(
+    const char*address,//"127.0.0.1"
+    uint32_t port//5000
+  ){
+  comsock_address = address;
+  comsock_port = port;
+  int listenfd = 0;
+  struct sockaddr_in serv_addr;
+
+  listenfd = socket(AF_INET, SOCK_STREAM, 0);
+  memset(&serv_addr, '0', sizeof(serv_addr));
+
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serv_addr.sin_port = htons(port);
+
+  bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+  comsock_listenfd = listenfd;
+  comsock_wait_connect();
+}
+static uint8_t comsock_read8(){
+  assert(comsock_stdinout);
+  uint8_t dat;
+  int size = -1;
+  while(1){
+    size = recv(comsock_stdinout, &dat, sizeof(dat), MSG_WAITALL);
+    if(1==size) break;
+    comsock_wait_connect();
+  }
+  return dat;
+}
+static void comsock_write8(FILE*dst,uint8_t dat){
+  assert(comsock_stdinout);
+  int size = -1;
+  while(1){
+    size = send(comsock_stdinout,&dat,sizeof(dat),0);
+    if(1==size) break;
+    comsock_wait_connect();
+  }
+}
+
 reg_t io_csr_t::read() const noexcept {
   if(this->address==CSR_BAREMETALINPUT) return getchar();
+  if(this->address==CSR_BAREMETALINPUT2) return comsock_read8();
   return 0;
 }
 
@@ -99,9 +161,16 @@ bool io_csr_t::unlogged_write(const reg_t val) noexcept {
   const int bgColor = ((val >> 24) & 7);
   const int fgColor = ((val >> 16) & 7);
   const reg_t stderr_flag = 1<<31;
+  const reg_t color_flag = 1<<30;
+  const reg_t socket_flag = 1<<29;
   FILE*dst = stdout;
-  if(val & stderr_flag) dst = stderr; 
-  fprintf(dst, "\x1b[0;3%d;4%dm%c\x1b[0m",bgColor,fgColor, ((int) val));
+  if(val & stderr_flag) dst = stderr;  
+  if(val & socket_flag){
+    comsock_write8(dst,val);
+  }else{
+    if(val & color_flag) fprintf(dst, "\x1b[0;3%d;4%dm%c\x1b[0m",bgColor,fgColor, ((int) val));
+    else fprintf(dst, "%c", ((int) val));
+  }
   return true;
 }
 

@@ -207,6 +207,11 @@ static unsigned long atoul_nonzero_safe(const char* s)
   return res;
 }
 
+void comsock_init(
+    const char*address,//"127.0.0.1"
+    uint32_t port//5000
+  );
+
 int main(int argc, char** argv)
 {
   bool debug = false;
@@ -238,6 +243,8 @@ int main(int argc, char** argv)
   const char* priv = DEFAULT_PRIV;
   const char* varch = DEFAULT_VARCH;
   const char* dtb_file = NULL;
+  uint16_t stdinout_port = 0;
+  bool use_comsock_stdinout = false;
   uint16_t rbb_port = 0;
   bool use_rbb = false;
   unsigned dmi_rti = 0;
@@ -322,6 +329,7 @@ int main(int argc, char** argv)
   // I wanted to use --halted, but for some reason that doesn't work.
   parser.option('H', 0, 0, [&](const char* s){halted = true;});
   parser.option(0, "rbb-port", 1, [&](const char* s){use_rbb = true; rbb_port = atoul_safe(s);});
+  parser.option(0, "stdinout-port", 1, [&](const char* s){use_comsock_stdinout = true; stdinout_port = atoul_safe(s);});
   parser.option(0, "pc", 1, [&](const char* s){start_pc = strtoull(s, 0, 0);});
   parser.option(0, "hartids", 1, hartids_parser);
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
@@ -470,6 +478,9 @@ int main(int argc, char** argv)
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
 
+  if(use_comsock_stdinout){
+    comsock_init("127.0.0.1",stdinout_port);
+  }
   auto return_code = s.run();
 
   for (auto& mem : mems)

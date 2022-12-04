@@ -130,7 +130,7 @@ void comsock_init(
   comsock_listenfd = listenfd;
   comsock_wait_connect();
 }
-static uint8_t comsock_read8(){
+static uint8_t comsock_read8(){//blocking
   assert(comsock_stdinout);
   uint8_t dat;
   int size = -1;
@@ -140,6 +140,19 @@ static uint8_t comsock_read8(){
     comsock_wait_connect();
   }
   return dat;
+}
+static uint32_t comsock_rx8(){//non blocking
+  assert(comsock_stdinout);
+  uint8_t dat;
+  int size = -1;
+  while(1){
+    size = recv(comsock_stdinout, &dat, sizeof(dat), MSG_DONTWAIT);
+    if(size>=0) break;
+    comsock_wait_connect();
+  }
+  assert(size<=1);
+  uint32_t out = (size<<31) | dat;
+  return out;
 }
 static void comsock_write8(FILE*dst,uint8_t dat){
   assert(comsock_stdinout);
@@ -153,7 +166,7 @@ static void comsock_write8(FILE*dst,uint8_t dat){
 
 reg_t io_csr_t::read() const noexcept {
   if(this->address==CSR_BAREMETALINPUT) return getchar();
-  if(this->address==CSR_BAREMETALINPUT2) return comsock_read8();
+  if(this->address==CSR_BAREMETALINPUT2) return comsock_rx8();
   return 0;
 }
 

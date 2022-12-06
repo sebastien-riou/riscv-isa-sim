@@ -130,7 +130,7 @@ void comsock_init(
   comsock_listenfd = listenfd;
   comsock_wait_connect();
 }
-static uint8_t comsock_read8(){//blocking
+static uint32_t comsock_read8(){//blocking
   assert(comsock_stdinout);
   uint8_t dat;
   int size = -1;
@@ -139,19 +139,20 @@ static uint8_t comsock_read8(){//blocking
     if(1==size) break;
     comsock_wait_connect();
   }
-  return dat;
+  return (1u<<31) | dat;
 }
 static uint32_t comsock_rx8(){//non blocking
   assert(comsock_stdinout);
   uint8_t dat;
-  int size = -1;
+  int size;
   while(1){
     size = recv(comsock_stdinout, &dat, sizeof(dat), MSG_DONTWAIT);
     if(size>=0) break;
     comsock_wait_connect();
   }
   assert(size<=1);
-  uint32_t out = (size<<31) | dat;
+  uint32_t out = (uint32_t)size;
+  out = (out<<31) | dat;
   return out;
 }
 static void comsock_write8(FILE*dst,uint8_t dat){

@@ -104,6 +104,7 @@ static int comsock_stdinout=0;
 static int comsock_port=0;
 static const char *comsock_address=0;
 static int comsock_listenfd = 0;
+static FILE*comsock_log = 0;
 void comsock_wait_connect(){
   printf("listening on port %d for stdinout\n",comsock_port);fflush(stdout);
   listen(comsock_listenfd, 1);//listen to a single connection
@@ -112,8 +113,17 @@ void comsock_wait_connect(){
 }
 void comsock_init(
     const char*address,//"127.0.0.1"
-    uint32_t port//5000
+    uint32_t port,//5000
+    const char*log_path//set to 0 to disable logging
   ){
+  if(log_path){
+    printf("logging stdinout to '%s'\n",log_path);
+    comsock_log = fopen(log_path,"w");
+    if(!comsock_log){
+      printf("ERROR: could not open '%s' for write\n",log_path);
+      assert(0);
+    }
+  }
   comsock_address = address;
   comsock_port = port;
   int listenfd = 0;
@@ -139,6 +149,7 @@ static uint32_t comsock_read8(){//blocking
     if(1==size) break;
     comsock_wait_connect();
   }
+  if(comsock_log){fprintf(comsock_log,"R %02x '%c'\n",dat,dat);fflush(comsock_log);}
   return (1u<<31) | dat;
 }
 static uint32_t comsock_rx8(){//non blocking
@@ -151,6 +162,9 @@ static uint32_t comsock_rx8(){//non blocking
     comsock_wait_connect();
   }
   assert(size<=1);
+  if(size){
+    if(comsock_log){fprintf(comsock_log,"R %02x '%c'\n",dat,dat);fflush(comsock_log);}
+  }
   uint32_t out = (uint32_t)size;
   out = (out<<31) | dat;
   return out;
@@ -158,6 +172,7 @@ static uint32_t comsock_rx8(){//non blocking
 static void comsock_write8(FILE*dst,uint8_t dat){
   assert(comsock_stdinout);
   int size = -1;
+  if(comsock_log){fprintf(comsock_log,"W %02x '%c'\n",dat,dat);fflush(comsock_log);}
   while(1){
     size = send(comsock_stdinout,&dat,sizeof(dat),0);
     if(1==size) break;

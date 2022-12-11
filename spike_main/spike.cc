@@ -209,7 +209,8 @@ static unsigned long atoul_nonzero_safe(const char* s)
 
 void comsock_init(
     const char*address,//"127.0.0.1"
-    uint32_t port//5000
+    uint32_t port,//5000
+    const char*log_path//set to 0 to disable logging
   );
 
 int main(int argc, char** argv)
@@ -245,6 +246,7 @@ int main(int argc, char** argv)
   const char* dtb_file = NULL;
   uint16_t stdinout_port = 0;
   bool use_comsock_stdinout = false;
+  const char *log_stdinout_path = nullptr;
   uint16_t rbb_port = 0;
   bool use_rbb = false;
   unsigned dmi_rti = 0;
@@ -377,6 +379,8 @@ int main(int argc, char** argv)
                 [&](const char* s){log_commits = true;});
   parser.option(0, "log", 1,
                 [&](const char* s){log_path = s;});
+  parser.option(0, "log-stdinout", 1, [&](const char* s){log_stdinout_path = s;});
+  
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
      if ((cmd_file = fopen(s, "r"))==NULL) {
@@ -479,7 +483,7 @@ int main(int argc, char** argv)
   s.set_histogram(histogram);
 
   if(use_comsock_stdinout){
-    comsock_init("127.0.0.1",stdinout_port);
+    comsock_init("127.0.0.1",stdinout_port,log_stdinout_path);
   }
   auto return_code = s.run();
 

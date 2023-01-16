@@ -89,7 +89,7 @@ io_csr_t::io_csr_t(processor_t* const proc, const reg_t addr):
   csr_t(proc, addr)
  {
 }
-
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
@@ -107,9 +107,15 @@ static int comsock_listenfd = 0;
 static FILE*comsock_log = 0;
 void comsock_wait_connect(){
   printf("listening on port %d for stdinout\n",comsock_port);fflush(stdout);
-  listen(comsock_listenfd, 1);//listen to a single connection
+  listen(comsock_listenfd, 5);
   comsock_stdinout = accept(comsock_listenfd, (struct sockaddr*)NULL, NULL);
   printf("stdinout connected\n");fflush(stdout);
+  int flag = 1;
+  setsockopt(comsock_stdinout,	
+			IPPROTO_TCP,			
+			TCP_NODELAY,			
+			(char *)&flag,			
+			sizeof(int));
 }
 void comsock_init(
     const char*address,//"127.0.0.1"
@@ -155,10 +161,18 @@ static uint32_t comsock_read8(){//blocking
 static uint32_t comsock_rx8(){//non blocking
   assert(comsock_stdinout);
   uint8_t dat;
+  const int expected_size = sizeof(dat);
   int size;
   while(1){
-    size = recv(comsock_stdinout, &dat, sizeof(dat), MSG_DONTWAIT);
-    if(size>=0) break;
+    size = recv(comsock_stdinout, &dat, expected_size, MSG_DONTWAIT);
+    if(size>0) break;
+    if(size==-1) {
+      if((errno==EAGAIN) || (errno==EWOULDBLOCK)){
+        size=0;
+        break;
+      }
+    }
+    printf("comsock_rx8: recv returned %d, errno=%d, comsock_stdinout=%d\n",size,errno,comsock_stdinout);
     comsock_wait_connect();
   }
   assert(size<=1);
@@ -176,6 +190,7 @@ static void comsock_write8(FILE*dst,uint8_t dat){
   while(1){
     size = send(comsock_stdinout,&dat,sizeof(dat),0);
     if(1==size) break;
+    printf("comsock_write8: send returned %d, comsock_stdinout=%d\n",size,comsock_stdinout);
     comsock_wait_connect();
   }
 }

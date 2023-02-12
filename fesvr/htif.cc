@@ -1,16 +1,19 @@
 // See LICENSE for license details.
 
+#include "config.h"
 #include "htif.h"
 #include "rfb.h"
 #include "elfloader.h"
 #include "platform.h"
 #include "byteorder.h"
+#include "trap.h"
 #include <algorithm>
 #include <assert.h>
 #include <vector>
 #include <queue>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <iomanip>
 #include <stdio.h>
 #include <unistd.h>
@@ -80,10 +83,23 @@ htif_t::~htif_t()
 
 void htif_t::start()
 {
-  if (!targs.empty() && targs[0] != "none")
+  if (!targs.empty() && targs[0] != "none") {
+    try {
       load_program();
+    } catch (const incompat_xlen & err) {
+      fprintf(stderr, "Error: cannot execute %d-bit program on RV%d hart\n", err.actual_xlen, err.expected_xlen);
+      exit(1);
+    }
+  }
 
   reset();
+}
+
+static void bad_address(const std::string& situation, reg_t addr)
+{
+  std::cerr << "Access exception occurred while " << situation << ":\n";
+  std::cerr << "Memory address 0x" << std::hex << addr << " is invalid\n";
+  exit(-1);
 }
 
 std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload, reg_t* entry)
@@ -96,6 +112,12 @@ std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload,
     std::string test_path = PREFIX TARGET_DIR + payload;
     if (access(test_path.c_str(), F_OK) == 0)
       path = test_path;
+    else
+      throw std::runtime_error(
+        "could not open " + payload + "; searched paths:\n" +
+        "\t. (current directory)\n" + 
+        "\t" + PREFIX TARGET_DIR + " (based on configured --prefix and --with-target)"
+      );
   }
 
   if (path.empty())
@@ -119,7 +141,12 @@ std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload,
     htif_t* htif;
   } preload_aware_memif(this);
 
-  return load_elf(path.c_str(), &preload_aware_memif, entry);
+  try {
+    return load_elf(path.c_str(), &preload_aware_memif, entry, expected_xlen);
+  } catch (mem_trap_t& t) {
+    bad_address("loading payload " + payload, t.get_tval());
+    abort();
+  }
 }
 
 void htif_t::load_program()
@@ -218,19 +245,37 @@ int htif_t::run()
 
   while (!signal_exit && exitcode == 0)
   {
-    if (auto tohost = from_target(mem.read_uint64(tohost_addr))) {
-      mem.write_uint64(tohost_addr, target_endian<uint64_t>::zero);
-      command_t cmd(mem, tohost, fromhost_callback);
-      device_list.handle_command(cmd);
-    } else {
-      idle();
+    uint64_t tohost;
+
+    try {
+      if ((tohost = from_target(mem.read_uint64(tohost_addr))) != 0)
+        mem.write_uint64(tohost_addr, target_endian<uint64_t>::zero);
+    } catch (mem_trap_t& t) {
+      bad_address("accessing tohost", t.get_tval());
     }
 
-    device_list.tick();
+    try {
+      if (tohost != 0) {
+        command_t cmd(mem, tohost, fromhost_callback);
+        device_list.handle_command(cmd);
+      } else {
+        idle();
+      }
 
-    if (!fromhost_queue.empty() && !mem.read_uint64(fromhost_addr)) {
-      mem.write_uint64(fromhost_addr, to_target(fromhost_queue.front()));
-      fromhost_queue.pop();
+      device_list.tick();
+    } catch (mem_trap_t& t) {
+      std::stringstream tohost_hex;
+      tohost_hex << std::hex << tohost;
+      bad_address("host was accessing memory on behalf of target (tohost = 0x" + tohost_hex.str() + ")", t.get_tval());
+    }
+
+    try {
+      if (!fromhost_queue.empty() && !mem.read_uint64(fromhost_addr)) {
+        mem.write_uint64(fromhost_addr, to_target(fromhost_queue.front()));
+        fromhost_queue.pop();
+      }
+    } catch (mem_trap_t& t) {
+      bad_address("accessing fromhost", t.get_tval());
     }
   }
 

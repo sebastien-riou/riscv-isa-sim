@@ -3,8 +3,9 @@
 #ifndef _RISCV_DISASM_H
 #define _RISCV_DISASM_H
 
+#include "common.h"
 #include "decode.h"
-#include "processor.h"
+#include "isa_parser.h"
 #include <string>
 #include <sstream>
 #include <algorithm>
@@ -81,7 +82,7 @@ class disasm_insn_t
 class disassembler_t
 {
  public:
-  disassembler_t(isa_parser_t* isa);
+  disassembler_t(const isa_parser_t *isa);
   ~disassembler_t();
 
   std::string disassemble(insn_t insn) const;
@@ -93,7 +94,7 @@ class disassembler_t
   static const int HASH_SIZE = 255;
   std::vector<const disasm_insn_t*> chain[HASH_SIZE+1];
 
-  void add_instructions(isa_parser_t* isa);
+  void add_instructions(const isa_parser_t* isa);
 
   const disasm_insn_t* probe_once(insn_t insn, size_t idx) const;
 

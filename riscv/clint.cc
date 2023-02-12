@@ -39,6 +39,8 @@ bool clint_t::load(reg_t addr, size_t len, uint8_t* bytes)
     memcpy(bytes, (uint8_t*)&mtimecmp[0] + addr - MTIMECMP_BASE, len);
   } else if (addr >= MTIME_BASE && addr + len <= MTIME_BASE + sizeof(mtime_t)) {
     memcpy(bytes, (uint8_t*)&mtime + addr - MTIME_BASE, len);
+  } else if (addr + len <= CLINT_SIZE) {
+    memset(bytes, 0, len);
   } else {
     return false;
   }
@@ -62,6 +64,8 @@ bool clint_t::store(reg_t addr, size_t len, const uint8_t* bytes)
     memcpy((uint8_t*)&mtimecmp[0] + addr - MTIMECMP_BASE, bytes, len);
   } else if (addr >= MTIME_BASE && addr + len <= MTIME_BASE + sizeof(mtime_t)) {
     memcpy((uint8_t*)&mtime + addr - MTIME_BASE, bytes, len);
+  } else if (addr + len <= CLINT_SIZE) {
+    // Do nothing
   } else {
     return false;
   }
@@ -82,6 +86,7 @@ void clint_t::increment(reg_t inc)
     mtime += inc;
   }
   for (size_t i = 0; i < procs.size(); i++) {
+    procs[i]->state.time->sync(mtime);
     procs[i]->state.mip->backdoor_write_with_mask(MIP_MTIP, 0);
     if (mtime >= mtimecmp[i])
       procs[i]->state.mip->backdoor_write_with_mask(MIP_MTIP, MIP_MTIP);

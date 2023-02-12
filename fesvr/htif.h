@@ -26,32 +26,27 @@ class htif_t : public chunked_memif_t
   int run();
   bool done();
   int exit_code();
-
+  void set_expected_xlen(unsigned int m) { expected_xlen = m; }
   virtual memif_t& memif() { return mem; }
 
   template<typename T> inline T from_target(target_endian<T> n) const
   {
-#ifdef RISCV_ENABLE_DUAL_ENDIAN
-    memif_endianness_t endianness = get_target_endianness();
-    assert(endianness == memif_endianness_little || endianness == memif_endianness_big);
+    endianness_t endianness = get_target_endianness();
+    assert(endianness == endianness_little || endianness == endianness_big);
 
-    return endianness == memif_endianness_big? n.from_be() : n.from_le();
-#else
-    return n.from_le();
-#endif
+    return endianness == endianness_big? n.from_be() : n.from_le();
   }
 
   template<typename T> inline target_endian<T> to_target(T n) const
   {
-#ifdef RISCV_ENABLE_DUAL_ENDIAN
-    memif_endianness_t endianness = get_target_endianness();
-    assert(endianness == memif_endianness_little || endianness == memif_endianness_big);
+    endianness_t endianness = get_target_endianness();
+    assert(endianness == endianness_little || endianness == endianness_big);
 
-    return endianness == memif_endianness_big? target_endian<T>::to_be(n) : target_endian<T>::to_le(n);
-#else
-    return target_endian<T>::to_le(n);
-#endif
+    return endianness == endianness_big? target_endian<T>::to_be(n) : target_endian<T>::to_le(n);
   }
+
+  addr_t get_tohost_addr() { return tohost_addr; }
+  addr_t get_fromhost_addr() { return fromhost_addr; }
 
  protected:
   virtual void reset() = 0;
@@ -73,7 +68,7 @@ class htif_t : public chunked_memif_t
 
   // indicates that the initial program load can skip writing this address
   // range to memory, because it has already been loaded through a sideband
-  virtual bool is_address_preloaded(addr_t taddr, size_t len) { return false; }
+  virtual bool is_address_preloaded(addr_t, size_t) { return false; }
 
   // Given an address, return symbol from addr2symbol map
   const char* get_symbol(uint64_t addr);
@@ -82,7 +77,7 @@ class htif_t : public chunked_memif_t
   void parse_arguments(int argc, char ** argv);
   void register_devices();
   void usage(const char * program_name);
-
+  unsigned int expected_xlen = 0;
   memif_t mem;
   reg_t entry;
   bool writezeros;

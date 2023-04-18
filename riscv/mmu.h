@@ -339,6 +339,7 @@ private:
   bool mmio_fetch(reg_t paddr, size_t len, uint8_t* bytes);
   bool mmio_load(reg_t paddr, size_t len, uint8_t* bytes);
   bool mmio_store(reg_t paddr, size_t len, const uint8_t* bytes);
+  bool mmio(reg_t paddr, size_t len, uint8_t* bytes, access_type type);
   bool mmio_ok(reg_t paddr, access_type type);
   void check_triggers(triggers::operation_t operation, reg_t address, std::optional<reg_t> data = std::nullopt);
   reg_t translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_flags);
@@ -364,10 +365,10 @@ private:
     if (!pmp_ok(pte_paddr, ptesize, LOAD, PRV_S))
       throw_access_exception(virt, addr, trap_type);
 
-    void* host_pte_paddr = sim->addr_to_mem(pte_paddr);
+    void* host_pte_addr = sim->addr_to_mem(pte_paddr);
     target_endian<T> target_pte;
-    if (host_pte_paddr) {
-      memcpy(&target_pte, host_pte_paddr, ptesize);
+    if (host_pte_addr) {
+      memcpy(&target_pte, host_pte_addr, ptesize);
     } else if (!mmio_load(pte_paddr, ptesize, (uint8_t*)&target_pte)) {
       throw_access_exception(virt, addr, trap_type);
     }
@@ -381,10 +382,10 @@ private:
     if (!pmp_ok(pte_paddr, ptesize, STORE, PRV_S))
       throw_access_exception(virt, addr, trap_type);
 
-    void* host_pte_paddr = sim->addr_to_mem(pte_paddr);
+    void* host_pte_addr = sim->addr_to_mem(pte_paddr);
     target_endian<T> target_pte = to_target((T)new_pte);
-    if (host_pte_paddr) {
-      memcpy(host_pte_paddr, &target_pte, ptesize);
+    if (host_pte_addr) {
+      memcpy(host_pte_addr, &target_pte, ptesize);
     } else if (!mmio_store(pte_paddr, ptesize, (uint8_t*)&target_pte)) {
       throw_access_exception(virt, addr, trap_type);
     }
@@ -400,6 +401,14 @@ private:
 
   inline const uint16_t* translate_insn_addr_to_host(reg_t addr) {
     return (uint16_t*)(translate_insn_addr(addr).host_offset + addr);
+  }
+
+  inline bool in_mprv()
+  {
+    return proc != nullptr
+           && !(proc->state.mnstatus && !get_field(proc->state.mnstatus->read(), MNSTATUS_NMIE))
+           && !proc->state.debug_mode
+           && get_field(proc->state.mstatus->read(), MSTATUS_MPRV);
   }
 
   reg_t pmp_homogeneous(reg_t addr, reg_t len);

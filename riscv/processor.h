@@ -99,6 +99,8 @@ struct state_t
   csr_t_p mideleg;
   csr_t_p mcounteren;
   csr_t_p mevent[N_HPMCOUNTERS];
+  csr_t_p mnstatus;
+  csr_t_p mnepc;
   csr_t_p scounteren;
   csr_t_p sepc;
   csr_t_p stval;
@@ -291,6 +293,8 @@ public:
   void set_mmu_capability(int cap);
 
   const char* get_symbol(uint64_t addr);
+  
+  bool is_waiting_for_interrupt() { return in_wfi; };
 
 private:
   const isa_parser_t * const isa;

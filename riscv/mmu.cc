@@ -61,7 +61,7 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
   bool hlvx = xlate_flags & RISCV_XLATE_VIRT_HLVX;
   reg_t mode = proc->state.prv;
   if (type != FETCH) {
-    if (!proc->state.debug_mode && get_field(proc->state.mstatus->read(), MSTATUS_MPRV)) {
+    if (in_mprv()) {
       mode = get_field(proc->state.mstatus->read(), MSTATUS_MPP);
       if (get_field(proc->state.mstatus->read(), MSTATUS_MPV) && mode != PRV_M)
         virt = true;
@@ -147,18 +147,35 @@ bool mmu_t::mmio_fetch(reg_t paddr, size_t len, uint8_t* bytes)
 
 bool mmu_t::mmio_load(reg_t paddr, size_t len, uint8_t* bytes)
 {
-  if (!mmio_ok(paddr, LOAD))
-    return false;
-
-  return sim->mmio_load(paddr, len, bytes);
+  return mmio(paddr, len, bytes, LOAD);
 }
 
 bool mmu_t::mmio_store(reg_t paddr, size_t len, const uint8_t* bytes)
 {
-  if (!mmio_ok(paddr, STORE))
-    return false;
+  return mmio(paddr, len, const_cast<uint8_t*>(bytes), STORE);
+}
 
-  return sim->mmio_store(paddr, len, bytes);
+bool mmu_t::mmio(reg_t paddr, size_t len, uint8_t* bytes, access_type type)
+{
+  bool power_of_2 = (len & (len - 1)) == 0;
+  bool naturally_aligned = (paddr & (len - 1)) == 0;
+
+  if (power_of_2 && naturally_aligned) {
+    if (!mmio_ok(paddr, type))
+      return false;
+
+    if (type == STORE)
+      return sim->mmio_store(paddr, len, bytes);
+    else
+      return sim->mmio_load(paddr, len, bytes);
+  }
+
+  for (size_t i = 0; i < len; i++) {
+    if (!mmio(paddr + i, 1, bytes + i, type))
+      return false;
+  }
+
+  return true;
 }
 
 void mmu_t::check_triggers(triggers::operation_t operation, reg_t address, std::optional<reg_t> data)
@@ -290,7 +307,7 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
 
   tlb_entry_t entry = {host_addr - vaddr, paddr - vaddr};
 
-  if (proc && get_field(proc->state.mstatus->read(), MSTATUS_MPRV))
+  if (in_mprv())
     return entry;
 
   if ((tlb_load_tag[idx] & ~TLB_CHECK_TRIGGERS) != expected_tag)

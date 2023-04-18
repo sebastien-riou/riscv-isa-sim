@@ -30,6 +30,8 @@ static void handle_signal(int sig)
   signal(sig, &handle_signal);
 }
 
+const size_t sim_t::INTERLEAVE;
+
 sim_t::sim_t(const cfg_t *cfg, bool halted,
              std::vector<std::pair<reg_t, mem_t*>> mems,
              std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices,
@@ -99,6 +101,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   for (size_t i = 0; i < cfg->nprocs(); i++) {
     procs[i] = new processor_t(&isa, cfg, this, cfg->hartids()[i], halted,
                                log_file.get(), sout_);
+    harts[cfg->hartids()[i]] = procs[i];
   }
 
   // When running without using a dtb, skip the fdt-based configuration steps
@@ -118,7 +121,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   // setting the dtb_file argument has one.
   reg_t clint_base;
   if (fdt_parse_clint(fdt, &clint_base, "riscv,clint0") == 0) {
-    clint.reset(new clint_t(procs, CPU_HZ / INSNS_PER_RTC_TICK, cfg->real_time_clint()));
+    clint.reset(new clint_t(this, CPU_HZ / INSNS_PER_RTC_TICK, cfg->real_time_clint()));
     bus.add_device(clint_base, clint.get());
   }
 
@@ -129,7 +132,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   reg_t plic_base;
   uint32_t plic_ndev;
   if (fdt_parse_plic(fdt, &plic_base, &plic_ndev, "riscv,plic0") == 0) {
-    plic.reset(new plic_t(procs, true, plic_ndev));
+    plic.reset(new plic_t(this, plic_ndev));
     bus.add_device(plic_base, plic.get());
     intctrl = plic.get();
   }

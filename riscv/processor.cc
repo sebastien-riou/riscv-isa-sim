@@ -260,7 +260,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
     auto mcounter = std::make_shared<const_csr_t>(proc, which_mcounter, 0);
     csrmap[which_mcounter] = mcounter;
 
-    if (proc->extension_enabled_const(EXT_ZICNTR) && proc->extension_enabled_const(EXT_ZIHPM)) {
+    if (proc->extension_enabled_const(EXT_ZIHPM)) {
       auto counter = std::make_shared<counter_proxy_csr_t>(proc, which_counter, mcounter);
       csrmap[which_counter] = counter;
     }
@@ -268,7 +268,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
       csrmap[which_mevent] = std::make_shared<rv32_low_csr_t>(proc, which_mevent, mevent[i - 3]);;
       auto mcounterh = std::make_shared<const_csr_t>(proc, which_mcounterh, 0);
       csrmap[which_mcounterh] = mcounterh;
-      if (proc->extension_enabled_const(EXT_ZICNTR) && proc->extension_enabled_const(EXT_ZIHPM)) {
+      if (proc->extension_enabled_const(EXT_ZIHPM)) {
         auto counterh = std::make_shared<counter_proxy_csr_t>(proc, which_counterh, mcounterh);
         csrmap[which_counterh] = counterh;
       }
@@ -336,7 +336,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
 
   csrmap[CSR_MEDELEG] = medeleg = std::make_shared<medeleg_csr_t>(proc, CSR_MEDELEG);
   csrmap[CSR_MIDELEG] = mideleg = std::make_shared<mideleg_csr_t>(proc, CSR_MIDELEG);
-  const reg_t counteren_mask = 0xffffffffULL;
+  const reg_t counteren_mask = (proc->extension_enabled_const(EXT_ZICNTR) ? 0x7UL : 0x0) | (proc->extension_enabled_const(EXT_ZIHPM) ? 0xfffffff8ULL : 0x0);
   mcounteren = std::make_shared<masked_csr_t>(proc, CSR_MCOUNTEREN, counteren_mask, 0);
   if (proc->extension_enabled_const('U')) csrmap[CSR_MCOUNTEREN] = mcounteren;
   csrmap[CSR_SCOUNTEREN] = scounteren = std::make_shared<masked_csr_t>(proc, CSR_SCOUNTEREN, counteren_mask, 0);
@@ -507,6 +507,13 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
     }
   }
 
+  if (proc->extension_enabled_const(EXT_SMRNMI)) {
+    csrmap[CSR_MNSCRATCH] = std::make_shared<basic_csr_t>(proc, CSR_MNSCRATCH, 0);
+    csrmap[CSR_MNEPC] = mnepc = std::make_shared<epc_csr_t>(proc, CSR_MNEPC);
+    csrmap[CSR_MNCAUSE] = std::make_shared<const_csr_t>(proc, CSR_MNCAUSE, (reg_t)1 << (xlen - 1));
+    csrmap[CSR_MNSTATUS] = mnstatus = std::make_shared<mnstatus_csr_t>(proc, CSR_MNSTATUS);
+  }
+
   if (proc->extension_enabled_const(EXT_SSTC)) {
     stimecmp = std::make_shared<stimecmp_csr_t>(proc, CSR_STIMECMP, MIP_STIP);
     vstimecmp = std::make_shared<stimecmp_csr_t>(proc, CSR_VSTIMECMP, MIP_VSTIP);
@@ -673,7 +680,8 @@ void processor_t::take_interrupt(reg_t pending_interrupts)
     }
   }
 
-  if (!state.debug_mode && enabled_interrupts) {
+  const bool nmie = !(state.mnstatus && !get_field(state.mnstatus->read(), MNSTATUS_NMIE));
+  if (!state.debug_mode && nmie && enabled_interrupts) {
     // nonstandard interrupts have highest priority
     if (enabled_interrupts >> (IRQ_M_EXT + 1))
       enabled_interrupts = enabled_interrupts >> (IRQ_M_EXT + 1) << (IRQ_M_EXT + 1);
@@ -701,6 +709,7 @@ void processor_t::take_interrupt(reg_t pending_interrupts)
     else
       abort();
 
+    if (check_triggers_icount) TM.detect_icount_match();
     throw trap_t(((reg_t)1 << (isa->get_max_xlen() - 1)) | ctz(enabled_interrupts));
   }
 }
@@ -726,6 +735,8 @@ void processor_t::set_privilege(reg_t prv)
 
 const char* processor_t::get_privilege_string()
 {
+  if (state.debug_mode)
+    return "D";
   if (state.v) {
     switch (state.prv) {
     case 0x0: return "VU";
@@ -862,8 +873,13 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
   } else {
     // Handle the trap in M-mode
     set_virt(false);
-    reg_t vector = (state.mtvec->read() & 1) && interrupt ? 4 * bit : 0;
-    state.pc = (state.mtvec->read() & ~(reg_t)1) + vector;
+    const reg_t vector = (state.mtvec->read() & 1) && interrupt ? 4 * bit : 0;
+    const reg_t trap_handler_address = (state.mtvec->read() & ~(reg_t)1) + vector;
+    // RNMI exception vector is implementation-defined.  Since we don't model
+    // RNMI sources, the feature isn't very useful, so pick an invalid address.
+    const reg_t rnmi_trap_handler_address = 0;
+    const bool nmie = !(state.mnstatus && !get_field(state.mnstatus->read(), MNSTATUS_NMIE));
+    state.pc = !nmie ? rnmi_trap_handler_address : trap_handler_address;
     state.mepc->write(epc);
     state.mcause->write(t.cause());
     state.mtval->write(t.get_tval());

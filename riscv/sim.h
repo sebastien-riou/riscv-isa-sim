@@ -126,6 +126,7 @@ private:
   void interactive_dumpmems(const std::string& cmd, const std::vector<std::string>& args);
   void interactive_mtime(const std::string& cmd, const std::vector<std::string>& args);
   void interactive_mtimecmp(const std::string& cmd, const std::vector<std::string>& args);
+  void interactive_scnt(const std::string& cmd, const std::vector<std::string>& args);
   void interactive_until(const std::string& cmd, const std::vector<std::string>& args, bool noisy);
   void interactive_until_silent(const std::string& cmd, const std::vector<std::string>& args);
   void interactive_until_noisy(const std::string& cmd, const std::vector<std::string>& args);
@@ -151,6 +152,7 @@ public:
   // enumerate processors, which segfaults if procs hasn't been initialized
   // yet.
   debug_module_t debug_module;
+  size_t stepsCount;//number of steps done since reset
 };
 
 extern volatile bool ctrlc_pressed;

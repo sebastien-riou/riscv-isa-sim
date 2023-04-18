@@ -612,6 +612,7 @@ int main(int argc, char** argv)
     comsock_init("127.0.0.1",stdinout_port,log_stdinout_path);
   }
   auto return_code = s.run();
+  printf("stepsCount=%lu\n",s.stepsCount);
 
   for (auto& mem : mems)
     delete mem.second;

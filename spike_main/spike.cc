@@ -613,6 +613,11 @@ int main(int argc, char** argv)
   }
   auto return_code = s.run();
 
+  for (size_t i = 0; i < cfg.nprocs(); i++)
+  {
+    printf("core %2u mcycles=%lu\n",(uint32_t)i,s.get_core(0)->get_csr(CSR_MCYCLE));
+  }
+
   for (auto& mem : mems)
     delete mem.second;
 

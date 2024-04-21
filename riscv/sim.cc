@@ -60,7 +60,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     debug_module(this, dm_config)
 {
   signal(SIGINT, &handle_signal);
-  stepsCount=0;
+
   sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
 
   for (auto& x : mems)
@@ -234,7 +234,7 @@ void sim_t::step(size_t n)
   {
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
-    if(0==current_proc) stepsCount+=steps;//count steps only for proc 0
+
     current_step += steps;
     if (current_step == INTERLEAVE)
     {
@@ -397,7 +397,6 @@ const char* sim_t::get_symbol(uint64_t paddr)
 
 void sim_t::reset()
 {
-  stepsCount=0;
   if (dtb_enabled)
     set_rom();
 }

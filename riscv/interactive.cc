@@ -282,7 +282,6 @@ void sim_t::interactive()
   funcs["str"] = &sim_t::interactive_str;
   funcs["mtime"] = &sim_t::interactive_mtime;
   funcs["mtimecmp"] = &sim_t::interactive_mtimecmp;
-  funcs["scnt"] = &sim_t::interactive_scnt;
   funcs["until"] = &sim_t::interactive_until_silent;
   funcs["untiln"] = &sim_t::interactive_until_noisy;
   funcs["while"] = &sim_t::interactive_until_silent;
@@ -447,15 +446,6 @@ void sim_t::interactive_pc(const std::string& cmd, const std::vector<std::string
   std::ostream out(sout_.rdbuf());
   out << std::hex << std::setfill('0') << "0x" << std::setw(max_xlen/4)
       << zext(get_pc(args), max_xlen) << std::endl;
-}
-
-void sim_t::interactive_scnt(const std::string& cmd, const std::vector<std::string>& args)
-{
-  if (args.size() != 0)
-    throw trap_interactive();
-
-  std::ostream out(sout_.rdbuf());
-  out << stepsCount << std::endl;
 }
 
 void sim_t::interactive_priv(const std::string& cmd, const std::vector<std::string>& args)
